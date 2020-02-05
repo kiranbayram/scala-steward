@@ -20,7 +20,7 @@ import cats.implicits._
 import org.http4s.Uri
 import org.scalasteward.core.application.SupportedVCS
 import org.scalasteward.core.application.SupportedVCS.{Bitbucket, BitbucketServer, GitHub, Gitlab}
-import org.scalasteward.core.data.Update
+import org.scalasteward.core.data.{ChangelogUrls, Update}
 import org.scalasteward.core.vcs.data.Repo
 
 package object vcs {
@@ -84,7 +84,7 @@ package object vcs {
       List.empty
   }
 
-  def possibleChangelogUrls(repoUrl: Uri, update: Update): List[Uri] = {
+  def possibleChangelogUrls(repoUrl: Uri, update: Update): ChangelogUrls = {
     val host = repoUrl.host.map(_.value)
     val vcsSpecific =
       if (host.contains_("github.com"))
@@ -105,6 +105,6 @@ package object vcs {
         possibleChangelogFilenames.map(name => base / name)
       }
     }
-    files ++ vcsSpecific
+    ChangelogUrls(files, vcsSpecific)
   }
 }

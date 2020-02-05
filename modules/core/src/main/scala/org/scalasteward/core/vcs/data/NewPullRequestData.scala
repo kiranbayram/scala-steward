@@ -20,7 +20,7 @@ import cats.implicits._
 import io.circe.Encoder
 import io.circe.generic.semiauto._
 import org.http4s.Uri
-import org.scalasteward.core.data.{GroupId, SemVer, Update}
+import org.scalasteward.core.data.{GroupId, PossibleChangelogUrlTuple, SemVer, Update}
 import org.scalasteward.core.git
 import org.scalasteward.core.git.Branch
 import org.scalasteward.core.nurture.UpdateData
@@ -43,7 +43,7 @@ object NewPullRequestData {
       update: Update,
       artifactIdToUrl: Map[String, Uri],
       branchCompareUrl: Option[Uri],
-      releaseNoteUrl: Option[Uri],
+      releaseNoteUrl: Option[PossibleChangelogUrlTuple],
       migrations: List[Migration]
   ): String = {
     val artifacts = artifactsWithOptionalUrl(update, artifactIdToUrl)
@@ -53,7 +53,7 @@ object NewPullRequestData {
       Nel.fromList(List(updateType(update)) ++ semVerLabel(update).toList ++ migrationLabel.toList)
 
     s"""|Updates $artifacts ${fromTo(update, branchCompareUrl)}.
-        |${releaseNote(releaseNoteUrl).getOrElse("")}
+        |${releaseNote(releaseNoteUrl)}
         |
         |I'll automatically update this PR to resolve conflicts as long as you don't change it yourself.
         |
@@ -77,10 +77,15 @@ object NewPullRequestData {
       "library-update"
   }
 
-  def releaseNote(releaseNoteUrl: Option[Uri]): Option[String] =
-    releaseNoteUrl.map { url =>
+  def releaseNote(releaseNoteUrl: Option[PossibleChangelogUrlTuple]): String = {
+    val first = releaseNoteUrl.flatMap(_.vcsSpecificReleaseNoteUrl).map { url =>
       s"[Release Notes/Changelog](${url.renderString})"
     }
+    val second = releaseNoteUrl.flatMap(_.changelogFileUrl).map { url =>
+      s"[Release Notes/Changelog 2](${url.renderString})"
+    }
+    List(first, second).mkString(" - ")
+  }
 
   def fromTo(update: Update, branchCompareUrl: Option[Uri]): String = {
     val fromToVersions = s"from ${update.currentVersion} to ${update.nextVersion}"
@@ -143,12 +148,12 @@ object NewPullRequestData {
     } yield s"semver-${change.render}"
 
   def from(
-      data: UpdateData,
-      branchName: String,
-      artifactIdToUrl: Map[String, Uri] = Map.empty,
-      branchCompareUrl: Option[Uri] = None,
-      releaseNoteUrl: Option[Uri] = None,
-      migrations: List[Migration] = List.empty
+            data: UpdateData,
+            branchName: String,
+            artifactIdToUrl: Map[String, Uri] = Map.empty,
+            branchCompareUrl: Option[Uri] = None,
+            releaseNoteUrl: Option[PossibleChangelogUrlTuple] = None,
+            migrations: List[Migration] = List.empty
   ): NewPullRequestData =
     NewPullRequestData(
       title = git.commitMsgFor(data.update),

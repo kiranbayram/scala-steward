@@ -19,13 +19,13 @@ package org.scalasteward.core.vcs
 import cats.Monad
 import cats.implicits._
 import org.http4s.Uri
-import org.scalasteward.core.data.Update
+import org.scalasteward.core.data.{PossibleChangelogUrlTuple, Update}
 import org.scalasteward.core.util.HttpExistenceClient
 import org.scalasteward.core.vcs
 
 trait VCSExtraAlg[F[_]] {
   def getBranchCompareUrl(repoUrl: Uri, update: Update): F[Option[Uri]]
-  def getReleaseNoteUrl(repoUrl: Uri, update: Update): F[Option[Uri]]
+  def getReleaseNoteUrl(repoUrl: Uri, update: Update): F[PossibleChangelogUrlTuple]
 }
 
 object VCSExtraAlg {
@@ -37,7 +37,16 @@ object VCSExtraAlg {
     override def getBranchCompareUrl(repoUrl: Uri, update: Update): F[Option[Uri]] =
       vcs.possibleCompareUrls(repoUrl, update).findM(existenceClient.exists)
 
-    override def getReleaseNoteUrl(repoUrl: Uri, update: Update): F[Option[Uri]] =
-      vcs.possibleChangelogUrls(repoUrl, update).findM(existenceClient.exists)
+    override def getReleaseNoteUrl(repoUrl: Uri, update: Update): F[PossibleChangelogUrlTuple]= {
+      val possibleChangelogUrls = vcs.possibleChangelogUrls(repoUrl, update)
+
+      for {
+        vcsSpecificReleaseNoteUrl <- possibleChangelogUrls.releaseNotesUrls.findM(existenceClient.exists)
+        changelogFileUrl <- possibleChangelogUrls.fileUrls.findM(existenceClient.exists)
+      } yield PossibleChangelogUrlTuple(vcsSpecificReleaseNoteUrl, changelogFileUrl)
+
+
+    }
   }
 }
+
